@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Browser-enforced proof of "no connection": connect-src none blocks fetch/XHR/WebSocket/beacons,
+     default-src none blocks every other load. The page can only run its own inline code. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; form-action 'none'">
+<title>Light Link phone transmitter</title>
+<style>
+  body { margin: 0; font: 16px system-ui, sans-serif; background: #111; color: #eee; }
+  main { padding: 16px; max-width: 480px; margin: auto; }
+  label { display: block; margin: 12px 0 4px; }
+  input, select, button { width: 100%; font-size: 18px; padding: 10px; box-sizing: border-box; }
+  button { margin-top: 12px; }
+  #status { margin-top: 12px; color: #9cf; white-space: pre-wrap; }
+  #flash { position: fixed; inset: 0; background: #000; display: none; z-index: 10; }
+  #dot { position: absolute; left: 50%; top: 50%; width: 70px; height: 70px; margin: -35px; background: #000; }
+  .warn { color: #fc6; font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h2>Light Link transmitter</h2>
+  <label>Message (max 32 bytes)</label>
+  <input id="msg" value="HI" maxlength="32">
+  <label>Bit rate (bit/s, must match the receiver)</label>
+  <select id="rate"></select>
+  <label>Gap between frames (ms)</label>
+  <input id="gap" type="number" value="1000" min="0" max="60000">
+  <label>Light</label>
+  <select id="mode">
+    <option value="screen">Screen flash (works everywhere)</option>
+    <option value="torch">Flashlight (Android Chrome, needs https)</option>
+  </select>
+  <button id="go">Start sending</button>
+  <button id="cal">Calibration: steady 1 Hz blink</button>
+  <button id="stop">Stop</button>
+  <div id="status">idle</div>
+  <p class="warn">This page makes no network requests (blocked by its Content-Security-Policy). The light is the only output.</p>
+  <p class="warn">Screen mode: tap the screen to stop. Put the phone 1-3 m from the laptop camera,
+  screen brightness at maximum. Do not use the flashlight at someone's face.</p>
+</main>
+<div id="flash"><div id="dot"></div></div>
+<script>
+// Same frame format as protocol/FRAME_SPEC.md (keep in sync with lightlink/protocol.py).
+const SYNC = 0x2DD4;
+function crc8(a) {
+  let c = 0;
+  for (const b of a) { c ^= b; for (let i = 0; i < 8; i++) c = (c & 0x80) ? ((c << 1) ^ 0x07) & 255 : (c << 1) & 255; }
+  return c;
+}
+function buildFrame(p) {
+  const body = [p.length, ...p];
+  return [0xFF, SYNC >> 8, SYNC & 255, ...body, crc8(body)];
+}
+function manchester(bytes) {          // MSB first; bit 1 -> ON,OFF ; bit 0 -> OFF,ON
+  const s = [];
+  for (const b of bytes) for (let i = 7; i >= 0; i--) { const v = (b >> i) & 1; s.push(v, 1 - v); }
+  return s;
+}
+if (typeof module !== "undefined") module.exports = { crc8, buildFrame, manchester };
+
+if (typeof document !== "undefined") (function () {
+  const $ = id => document.getElementById(id);
+  for (let r = 2; r <= 15; r++) $("rate").add(new Option(r + " bit/s", r, false, r === 4));
+  let running = false, track = null, wake = null;
+
+  async function setupTorch() {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    track = stream.getVideoTracks()[0];
+    if (!(track.getCapabilities && track.getCapabilities().torch)) throw new Error("this browser/phone exposes no torch control");
+  }
+  let last = -1;
+  function setLight(on) {
+    if (on === last) return;
+    last = on;
+    if ($("mode").value === "torch") track.applyConstraints({ advanced: [{ torch: !!on }] }).catch(() => {});
+    else $("dot").style.background = on ? "#fff" : "#000";
+  }
+  async function start(calibrate) {
+    if (running) stop();
+    const msg = Array.from(new TextEncoder().encode($("msg").value));
+    if (msg.length > 32) { $("status").textContent = "message longer than 32 bytes"; return; }
+    const rate = +$("rate").value, Ts = 1000 / (2 * rate);
+    const syms = manchester(buildFrame(msg));
+    const total = syms.length + Math.round(+$("gap").value / Ts);
+    try {
+      if ($("mode").value === "torch") await setupTorch(); else $("flash").style.display = "block";
+      if (navigator.wakeLock) wake = await navigator.wakeLock.request("screen").catch(() => null);
+    } catch (e) { $("status").textContent = "cannot start: " + e.message; $("flash").style.display = "none"; return; }
+    running = true; last = -1;
+    const t0 = performance.now() + 500;     // absolute schedule: errors never accumulate
+    $("status").textContent = calibrate ? "calibration: 1 Hz blink" :
+      `sending "${$("msg").value}" at ${rate} bit/s, frame ${(syms.length * Ts / 1000).toFixed(1)} s`;
+    (function loop() {
+      if (!running) return;
+      const dt = performance.now() - t0;
+      const on = dt < 0 ? 0 : calibrate ? (Math.floor(dt / 500) % 2 === 0 ? 1 : 0)
+                                        : (Math.floor(dt / Ts) % total < syms.length ? syms[Math.floor(dt / Ts) % total] : 0);
+      setLight(on);
+      setTimeout(loop, 4);
+    })();
+  }
+  function stop() {
+    running = false; setLight(0);
+    $("flash").style.display = "none";
+    if (track) { track.stop(); track = null; }
+    if (wake) { wake.release(); wake = null; }
+    $("status").textContent = "idle";
+  }
+  $("go").onclick = () => start(false);
+  $("cal").onclick = () => start(true);
+  $("stop").onclick = stop;
+  $("flash").onclick = stop;
+})();
+</script>
+</body>
+</html>

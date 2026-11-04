@@ -1,0 +1,15 @@
+__pycache__/
+.pytest_cache/
+logs/
+*.log
+*.avi
+metrics_*.csv
+.claude/
+.env
+*.pem
+*.key
+*.ts.csv
+*.pyc
+serve.log
+live.log
+Thumbs.db

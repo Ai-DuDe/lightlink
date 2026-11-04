@@ -1,0 +1,110 @@
+# Light Link P1 configuration. Every tunable lives here; code has no magic numbers.
+# Wire-format constants (preamble, sync word, CRC) are NOT here: they are fixed by
+# protocol/FRAME_SPEC.md because the ESP32 firmware cannot read this file.
+
+protocol:
+  bit_rate_bps: 8.0       # 2..15. Use ~4 for a 30 fps camera (see README "Choosing a bit rate")
+  gap_s: 1.0              # dark time between repeated frames (must match firmware "gap")
+
+camera:
+  index: 0
+  backends: [msmf, dshow, any]   # MSMF gave 27 fps vs 5 fps on DirectShow on the dev laptop webcam
+  width: 1280
+  height: 720
+  fps: 30
+  lock_exposure: false   # MSMF repeated frames when locked on the dev webcam; re-test with camera_check.py
+  exposure: -6            # driver specific; DirectShow uses log2 seconds (-6 = 1/64 s)
+  gain: 0
+  readback_tol: 0.6       # a property "obeyed" if the read-back is within this of the request
+  settle_frames: 15       # frames discarded after changing settings
+  min_samples_per_symbol: 3.0   # used to turn true FPS into a maximum bit rate
+
+detector:
+  analysis_width: 320     # frames are downscaled to this width for the variation map
+  energy_tau_s: 1.5       # memory of the frame-difference energy map
+  blur_sigma_px: 1.5
+  warmup_s: 1.0           # ignore the map until it has filled
+  stats_every: 5          # recompute noise floor every N frames (median is not free)
+  min_z: 8.0              # peak must stand this many robust sigmas above the noise floor
+  min_excess: 20.0        # ...and this many energy units (gray^2) above it
+  max_blob_fraction: 0.02 # a "spot" covering more of the frame than this is a scene change
+  confirm_s: 0.6          # candidate must stay put this long before a track starts
+  confirm_radius_px: 8    # full-resolution pixels
+
+tracker:
+  process_noise: 40.0     # accel noise (px/s^2): how fast the spot may start moving
+  meas_noise_px: 1.5
+  gate_px: 14             # measurement accepted only within this of the prediction
+  conf_tau_s: 4.0         # tracking confidence decays with this time constant when blind
+  lost_timeout_s: 6.0     # no measurement for this long -> drop the track
+  reacquire_after_s: 2.0  # if blind this long and another source is bright, jump to it
+  max_pos_sigma_px: 20.0  # position uncertainty at which confidence reaches zero
+
+sampler:
+  roi_half_px: 10         # brightness is read from a (2n+1)^2 window on the tracked spot
+  top_k: 9                # mean of the k brightest pixels: robust to sub-pixel motion
+  sat_level: 250          # gray level counted as clipped
+
+demod:
+  buffer_margin: 1.5      # keep this many max-length frames of samples
+  poll_interval_s: 0.5    # how often we attempt to find and decode frames
+  rate_tolerance: 0.03    # TX/RX clock mismatch searched over +-3 %
+  rate_steps: 7
+  phase_steps: 8          # symbol-grid offsets tried per symbol period
+  corr_threshold: 0.6     # normalised preamble+sync correlation to become a candidate
+  preamble_max_bit_errors: 2
+  sync_max_bit_errors: 0  # sync word must match exactly
+  low_pct: 10             # robust "off" level
+  high_pct: 90            # robust "on" level
+  min_contrast: 12.0      # gray levels; below this we do not even try to decode
+  pll_gain: 0.5           # mid-bit transition timing loop
+  pll_step: 0.25          # max phase correction per bit, in symbol periods
+  window_frac: 0.5        # central fraction of each half-bit used for the decision
+  dup_tol_bits: 4         # candidate within this of an already-decoded frame is a duplicate
+
+link:
+  expected_gap_s: 1.0
+  valid_window_factor: 2.5  # LOCKED needs a valid frame within this many frame periods
+  crc_history: 5            # frames used for the CRC pass rate
+  q_lock: 0.65
+  hysteresis: 0.12          # extra margin before LOCKED is given up
+  conf_lock: 0.5
+  lock_dwell_s: 0.5
+  lost_to_searching_s: 5.0
+  contrast_good: 50.0       # gray levels of on/off contrast that count as "full marks"
+  drop_factor: 1.8          # an interval this many times the median counts as dropped frame(s)
+  drop_window_s: 5.0
+  max_drop_fraction: 0.25   # drop fraction at which the drop score reaches zero
+  weights: {contrast: 0.25, tracking: 0.25, crc: 0.30, saturation: 0.10, drops: 0.10}
+
+dashboard:
+  window_name: "Light Link P1"
+  trace_seconds: 12
+  log_lines: 8
+  log_dir: logs
+  video_fourcc: MJPG
+
+sim:
+  width: 640
+  height: 360
+  fps: 30
+  duration_s: 40
+  payload: "HELLO"
+  start_s: 2.0              # transmitter switches on
+  spot_xy: [0.62, 0.41]     # fraction of frame
+  spot_sigma_px: 2.0
+  spot_amplitude: 110       # gray levels added at full on
+  background: 55
+  noise_sigma: 3.0
+  shot_noise_k: 0.5         # noise grows with brightness like a real sensor
+  exposure_frac: 0.5        # exposure as a fraction of the frame interval
+  drift_amp: 0.08           # slow global brightness drift (auto-exposure-like)
+  drift_period_s: 17.0
+  jitter_ms: 2.0            # true frame-time jitter
+  ts_noise_ms: 1.5          # extra error in the reported timestamp
+  drop_prob: 0.02
+  tx_clock_ppm: 3000        # transmitter clock error (0.3 %)
+  wander_px: 0.0            # slow sinusoidal spot motion amplitude
+  lamp: {enabled: true, xy: [0.25, 0.3], amplitude: 150, sigma_px: 6.0}  # static distractor
+  blocks: []                # [[t0, t1], ...] seconds during which the light is blocked
+  seed: 1
