@@ -64,5 +64,7 @@ def test_dashboard_renders_headless():
     for f in sim.frames():
         u = rx.process(f.t, f.image)
         ds.add(u)
-    out = render(f.image, u, ds, 8.0, True, True)
-    assert out.ndim == 3 and out.shape[1] == 640 + 380 and out.std() > 5
+    # any window size, landscape / portrait / tiny / 4K-ish, must render at exactly that size
+    for w, h in [(1280, 720), (1920, 1080), (640, 480), (900, 1100), (320, 240), (3000, 1600)]:
+        out = render(f.image, u, ds, 8.0, True, True, size=(w, h))
+        assert out.shape == (h, w, 3) and out.std() > 5, (w, h)

@@ -35,7 +35,7 @@ python scripts/run_replay.py --simulate --no-window
 3. Hold the phone 1-2 m from the laptop, light facing the camera. A box should appear around it.
 4. Phone: tap **Start sending**. After a few seconds the message appears in the dashboard.
 
-Dashboard keys: `l` log to CSV, `v` record video, `q` quit. Output goes to `logs/`.
+Dashboard keys: `l` log to CSV, `v` record raw camera video, `f` fullscreen, `q` quit. The window can be resized or maximised and the layout adapts. Output goes to `logs/`.
 
 The phone page makes no network requests at all (its Content-Security-Policy forbids them), so what the laptop
 receives has travelled only as light. The page is `docs/index.html`.

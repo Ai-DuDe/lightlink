@@ -13,3 +13,4 @@ metrics_*.csv
 serve.log
 live.log
 Thumbs.db
+.venv/

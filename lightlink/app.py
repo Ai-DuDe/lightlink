@@ -16,6 +16,11 @@ def run_dashboard(cfg, source, realtime=False, headless_frames=None):
     rec = VideoRecorder(d.log_dir, d.video_fourcc, cfg.camera.fps)
     wall0 = t0 = None
     n = 0
+    size, fullscreen = (1280, 720), False
+    if headless_frames is None:
+        # resizable: the dashboard is redrawn at the real window size, so maximise/resize just work
+        cv2.namedWindow(d.window_name, cv2.WINDOW_NORMAL)
+        cv2.resizeWindow(d.window_name, *size)
     try:
         for t, frame in source:
             u = rx.process(t, frame)
@@ -31,10 +36,20 @@ def run_dashboard(cfg, source, realtime=False, headless_frames=None):
                 lag = (t - t0) - (time.perf_counter() - wall0)
                 if lag > 0:
                     time.sleep(min(lag, 0.1))
-            cv2.imshow(d.window_name, render(frame, u, ds, rx.bit_rate, logger.on, rec.on))
+            try:
+                _, _, ww, wh = cv2.getWindowImageRect(d.window_name)
+                if ww >= 160 and wh >= 120:          # ignore the 0x0 reported while minimised
+                    size = (ww, wh)
+            except cv2.error:
+                pass
+            cv2.imshow(d.window_name, render(frame, u, ds, rx.bit_rate, logger.on, rec.on, size))
             key = cv2.waitKey(1) & 0xFF
             if key in (ord("q"), 27):
                 break
+            if key == ord("f"):
+                fullscreen = not fullscreen
+                cv2.setWindowProperty(d.window_name, cv2.WND_PROP_FULLSCREEN,
+                                      cv2.WINDOW_FULLSCREEN if fullscreen else cv2.WINDOW_NORMAL)
             if key == ord("l"):
                 p = logger.toggle()
                 print("logging ->", p if p else "stopped")
