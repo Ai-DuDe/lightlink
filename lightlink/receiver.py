@@ -68,6 +68,16 @@ class Receiver:
         self.candidate = None            # (x, y, since) waiting for confirmation
         self.last_brightness = None
 
+    def set_bit_rate(self, rate: float):
+        """Change the expected bit rate live (must match the transmitter). Clears decoder state
+        so samples collected at the old rate cannot produce a frame at the new one."""
+        rate = float(rate)
+        if not 2.0 <= rate <= 15.0:
+            raise ValueError(f"bit rate must be 2..15, got {rate}")
+        self.bit_rate = rate
+        self.demod = Demodulator(self.cfg.demod, rate)
+        self.link.reset_evidence()
+
     def _acquire(self, t):
         pk = self.det.find_peak(t)
         c = self.cfg.detector

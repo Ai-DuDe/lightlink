@@ -31,6 +31,7 @@ class DashboardState:
         self.trace = deque()           # (t, brightness, threshold)
         self.log = deque(maxlen=60)    # (time, ok, text); render shows as many as fit
         self.counts = {"valid": 0, "failed": 0}
+        self.buttons = {}              # name -> (x0, y0, x1, y1) of clickable areas, set by render()
 
     def add(self, u):
         if u.brightness is not None:
@@ -148,10 +149,30 @@ def _draw_panel(canvas, u, ds, bit_rate, rect, s, logging_on, recording):
             _bar(canvas, ix0, y, iw, int(10 * s), u.quality / 100.0, col, s)
             y += int(10 * s) + gap
 
+    # 1b. bit rate control (must equal the transmitter's) -------------------------------------
+    ds.buttons = {}
+    rh = int(46 * s)
+    if bottom - y >= rh + 70 * s:
+        _card(canvas, ix0, y, ix1, y + rh, s)
+        _put(canvas, "BIT RATE", ix0 + 12 * s, y + 19 * s, 0.38 * s, MUTED)
+        _put(canvas, "match the sender", ix0 + 12 * s, y + 36 * s, 0.32 * s, MUTED, max_w=iw * 0.4)
+        bw, by0, by1 = int(36 * s), y + int(6 * s), y + rh - int(6 * s)
+        plus_x = ix1 - int(10 * s) - bw
+        minus_x = plus_x - int(86 * s) - bw
+        for name, bx, glyph in (("rate_down", minus_x, "-"), ("rate_up", plus_x, "+")):
+            _rrect(canvas, bx, by0, bx + bw, by1, 9 * s, (70, 66, 62))
+            gw = _text_w(glyph, 0.9 * s, 2)
+            _put(canvas, glyph, bx + (bw - gw) / 2, (by0 + by1) / 2 + 7 * s, 0.9 * s, TEXT, 2)
+            ds.buttons[name] = (bx, by0, bx + bw, by1)
+        label = f"{bit_rate:g} bps"
+        lx = (minus_x + bw + plus_x) / 2 - _text_w(label, 0.62 * s, 2) / 2
+        _put(canvas, label, lx, (by0 + by1) / 2 + 7 * s, 0.62 * s, TEXT, 2)
+        y += rh + gap
+
     # 2. stats grid ---------------------------------------------------------------------------
     off = "--" if u.offset is None else f"{u.offset[0]:+.2f} {u.offset[1]:+.2f}"
-    stats = [("FPS", f"{u.fps:.1f}"), ("BIT RATE", f"{bit_rate:g} bps"), ("DROPPED", str(u.dropped_total)),
-             ("OFFSET dx dy", off), ("VALID", str(ds.counts["valid"])), ("FAILED", str(ds.counts["failed"]))]
+    stats = [("FPS", f"{u.fps:.1f}"), ("DROPPED", str(u.dropped_total)), ("OFFSET dx dy", off),
+             ("VALID", str(ds.counts["valid"])), ("FAILED", str(ds.counts["failed"]))]
     cols = 3 if iw >= 300 * s else 2
     rows = -(-len(stats) // cols)
     cell_h = int(44 * s)
@@ -230,7 +251,7 @@ def _draw_panel(canvas, u, ds, bit_rate, rect, s, logging_on, recording):
 
     # footer ------------------------------------------------------------------------------------
     fy = y1 - pad + int(2 * s)
-    hint = "L log   V video   F fullscreen   Q quit"
+    hint = "+/- rate   L log   V video   F full   Q quit"
     _put(canvas, hint, ix0, fy, 0.36 * s, MUTED, 1, max_w=iw - 60 * s)
     flags = [("LOG", logging_on), ("REC", recording)]
     fx = ix1

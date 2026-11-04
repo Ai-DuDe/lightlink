@@ -17,10 +17,27 @@ def run_dashboard(cfg, source, realtime=False, headless_frames=None):
     wall0 = t0 = None
     n = 0
     size, fullscreen = (1280, 720), False
+    clicks = []
+
+    def on_mouse(event, x, y, flags, param):
+        if event == cv2.EVENT_LBUTTONUP:
+            for name, (x0, y0, x1, y1) in ds.buttons.items():
+                if x0 <= x <= x1 and y0 <= y <= y1:
+                    clicks.append(name)
+
+    def step_rate(direction):
+        rates = list(d.rates)
+        i = min(range(len(rates)), key=lambda k: abs(rates[k] - rx.bit_rate))
+        new = rates[max(0, min(len(rates) - 1, i + direction))]
+        if new != rx.bit_rate:
+            rx.set_bit_rate(new)
+            print(f"bit rate -> {new:g} bps (the transmitter must use the same)")
+
     if headless_frames is None:
         # resizable: the dashboard is redrawn at the real window size, so maximise/resize just work
         cv2.namedWindow(d.window_name, cv2.WINDOW_NORMAL)
         cv2.resizeWindow(d.window_name, *size)
+        cv2.setMouseCallback(d.window_name, on_mouse)
     try:
         for t, frame in source:
             u = rx.process(t, frame)
@@ -46,6 +63,12 @@ def run_dashboard(cfg, source, realtime=False, headless_frames=None):
             key = cv2.waitKey(1) & 0xFF
             if key in (ord("q"), 27):
                 break
+            while clicks:
+                step_rate(1 if clicks.pop(0) == "rate_up" else -1)
+            if key in (ord("="), ord("+"), ord("]")):
+                step_rate(1)
+            if key in (ord("-"), ord("_"), ord("[")):
+                step_rate(-1)
             if key == ord("f"):
                 fullscreen = not fullscreen
                 cv2.setWindowProperty(d.window_name, cv2.WND_PROP_FULLSCREEN,

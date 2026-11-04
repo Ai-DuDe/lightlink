@@ -68,3 +68,5 @@ def test_dashboard_renders_headless():
     for w, h in [(1280, 720), (1920, 1080), (640, 480), (900, 1100), (320, 240), (3000, 1600)]:
         out = render(f.image, u, ds, 8.0, True, True, size=(w, h))
         assert out.shape == (h, w, 3) and out.std() > 5, (w, h)
+    out = render(f.image, u, ds, 8.0, False, False, size=(1280, 720))
+    assert set(ds.buttons) == {'rate_down', 'rate_up'}      # clickable rate buttons are laid out

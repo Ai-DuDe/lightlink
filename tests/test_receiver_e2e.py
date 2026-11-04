@@ -58,3 +58,26 @@ def test_video_roundtrip_replay(tmp_path):
     save_video(p, sim.frames(), 30)
     res = run_frames(cfg, read_video(p))
     assert any(e.valid and e.payload == b"HI" for e in res.events)
+
+
+def test_changing_bit_rate_live_fixes_a_mismatch():
+    from lightlink.receiver import Receiver
+    cfg, sim = _sim({"duration_s": 45}, rate=6.0)          # transmitter at 6 bit/s
+    cfg = load_config(overrides={"protocol": {"bit_rate_bps": 4.0}, "sim": {"payload": "HI", "duration_s": 45}})
+    rx, before, after = Receiver(cfg), [], []
+    for f in sim.frames():
+        if f.t > 15 and rx.bit_rate != 6.0:
+            rx.set_bit_rate(6.0)                           # what the dashboard + button does
+        u = rx.process(f.t, f.image)
+        (after if rx.bit_rate == 6.0 else before).extend(e for e in u.events if e.valid)
+    assert before == []                                    # wrong rate: nothing is decoded
+    assert after and all(e.payload == b"HI" for e in after)
+
+
+def test_set_bit_rate_rejects_out_of_range():
+    import pytest
+    from lightlink.receiver import Receiver
+    rx = Receiver(load_config())
+    for bad in (1.0, 16.0):
+        with pytest.raises(ValueError):
+            rx.set_bit_rate(bad)

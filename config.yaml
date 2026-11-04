@@ -83,6 +83,7 @@ dashboard:
   log_lines: 8
   log_dir: logs
   video_fourcc: MJPG
+  rates: [2, 3, 4, 5, 6, 8, 10, 12, 15]   # steps for the + / - bit-rate buttons
 
 sim:
   width: 640
