@@ -3,7 +3,7 @@
 # protocol/FRAME_SPEC.md because the ESP32 firmware cannot read this file.
 
 protocol:
-  bit_rate_bps: 8.0       # 2..15. Use ~4 for a 30 fps camera (see README "Choosing a bit rate")
+  bit_rate_bps: 4.0       # 2..15. MUST equal the transmitter. 4 suits a 30 fps webcam (page default is also 4)
   gap_s: 1.0              # dark time between repeated frames (must match firmware "gap")
 
 camera:
