@@ -45,3 +45,9 @@ Check value: `crc8("123456789") == 0xF4`.
 
 Maximum frame = 8 + 16 + 8 + 256 + 8 = 296 bits: 148 s at 2 bit/s, 74 s at 4 bit/s,
 37 s at 8 bit/s. Keep payloads short at low bit rates.
+
+## Lead-in (optional, sender side)
+
+A sender that transmits a frame only once may first blink the preamble pattern (bit `1` repeated, a square wave at
+the bit rate) for a few seconds. This is not part of the frame: it gives a receiver that is still searching time to find
+and track the light, so the real frame is not missed. The phone page does this (4 s). Receivers ignore it.

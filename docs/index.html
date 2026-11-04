@@ -2,46 +2,144 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#070707">
 <!-- Browser-enforced proof of "no connection": connect-src none blocks fetch/XHR/WebSocket/beacons,
      default-src none blocks every other load. The page can only run its own inline code. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; form-action 'none'">
-<title>Light Link phone transmitter</title>
+<title>Light Link</title>
 <style>
-  body { margin: 0; font: 16px system-ui, sans-serif; background: #111; color: #eee; }
-  main { padding: 16px; max-width: 480px; margin: auto; }
-  label { display: block; margin: 12px 0 4px; }
-  input, select, button { width: 100%; font-size: 18px; padding: 10px; box-sizing: border-box; }
-  button { margin-top: 12px; }
-  #status { margin-top: 12px; color: #9cf; white-space: pre-wrap; }
-  #flash { position: fixed; inset: 0; background: #000; display: none; z-index: 10; }
-  #dot { position: absolute; left: 50%; top: 50%; width: 70px; height: 70px; margin: -35px; background: #000; }
-  .warn { color: #fc6; font-size: 14px; }
+  :root {
+    --bg1: #070707; --bg2: #1b1b1b; --ink: #f4f4f4; --muted: rgba(255,255,255,.58);
+    --a: #ffffff; --b: #9b9b9b; --ok: #ffffff; --bad: #c9c9c9; --warn: #dcdcdc;
+    --glass: rgba(255,255,255,.08); --glass-line: rgba(255,255,255,.18);
+    --raise: 6px 6px 14px rgba(0,0,0,.55), -5px -5px 12px rgba(255,255,255,.06);
+    --press: inset 4px 4px 10px rgba(0,0,0,.6), inset -3px -3px 8px rgba(255,255,255,.05);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink);
+    background: linear-gradient(145deg, var(--bg1), var(--bg2)); min-height: 100vh; overflow-x: hidden;
+    padding: max(18px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  }
+  /* soft colour blobs behind the glass */
+  body::before, body::after { content: ""; position: fixed; z-index: -1; border-radius: 50%; filter: blur(70px); opacity: .16; }
+  body::before { width: 320px; height: 320px; background: #ffffff; top: -90px; left: -80px; }
+  body::after  { width: 300px; height: 300px; background: #b5b5b5; bottom: -80px; right: -70px; }
+  main { max-width: 440px; margin: 0 auto; display: grid; gap: 14px; }
+  header { text-align: center; padding: 6px 0 2px; }
+  h1 { margin: 0; font-size: 26px; letter-spacing: .5px; background: linear-gradient(90deg, var(--a), var(--b));
+       -webkit-background-clip: text; background-clip: text; color: transparent; }
+  header p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+
+  .glass { background: var(--glass); border: 1px solid var(--glass-line); border-radius: 24px; padding: 16px;
+           -webkit-backdrop-filter: blur(20px) saturate(150%); backdrop-filter: blur(20px) saturate(150%);
+           box-shadow: 0 10px 34px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.12); }
+  label, .lab { display: block; font-size: 12px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+  .lab:not(:first-child) { margin-top: 16px; }
+
+  input[type=text] { width: 100%; font: inherit; font-size: 18px; color: var(--ink); background: rgba(0,0,0,.45);
+    border: 0; border-radius: 16px; padding: 14px 16px; box-shadow: var(--press); outline: none; }
+  input[type=text]:focus { box-shadow: var(--press), 0 0 0 2px rgba(255,255,255,.45); }
+  .count { float: right; font-size: 12px; color: var(--muted); }
+
+  .chips, .seg { display: flex; flex-wrap: wrap; gap: 8px; }
+  .seg { flex-wrap: nowrap; background: rgba(0,0,0,.45); border-radius: 16px; padding: 4px; box-shadow: var(--press); gap: 4px; }
+  .chip, .seg button { font: inherit; font-size: 15px; color: var(--muted); border: 0; cursor: pointer;
+    background: rgba(255,255,255,.05); border-radius: 14px; padding: 9px 13px; min-width: 44px; box-shadow: var(--raise);
+    transition: transform .12s, color .15s; }
+  .seg button { flex: 1; background: transparent; box-shadow: none; padding: 10px 6px; }
+  .chip:active, .seg button:active { transform: scale(.96); }
+  .chip.on { color: #000; font-weight: 700; background: linear-gradient(135deg, var(--a), var(--b)); box-shadow: 0 4px 14px rgba(255,255,255,.22); }
+  .seg button.on { color: #000; font-weight: 700; background: linear-gradient(135deg, var(--a), var(--b)); box-shadow: 0 3px 12px rgba(255,255,255,.2); }
+  .chip:disabled, .seg button:disabled { opacity: .55; cursor: default; }
+  .hint { margin: 10px 2px 0; font-size: 13px; color: var(--muted); }
+  .hint.warn { color: var(--warn); }
+  [hidden] { display: none !important; }
+
+  /* the transmit card */
+  .stage { text-align: center; }
+  .ring { position: relative; width: 168px; height: 168px; margin: 4px auto 14px; }
+  .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring .track { fill: none; stroke: rgba(255,255,255,.1); stroke-width: 9; }
+  .ring .bar { fill: none; stroke: url(#g); stroke-width: 9; stroke-linecap: round; stroke-dasharray: 339.3; stroke-dashoffset: 339.3; transition: stroke-dashoffset .12s linear; }
+  .ring .mid { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+  .ring .big { font-size: 30px; font-weight: 700; }
+  .ring .sm { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .go { width: 100%; font: inherit; font-size: 18px; font-weight: 700; color: #000; border: 0; border-radius: 20px; padding: 16px;
+        cursor: pointer; background: linear-gradient(135deg, var(--a), var(--b)); box-shadow: 0 8px 24px rgba(255,255,255,.16), inset 0 1px 0 rgba(255,255,255,.5);
+        transition: transform .12s, filter .15s; }
+  .go:active { transform: scale(.98); filter: brightness(.95); }
+  .go.stop { color: #fff; background: #1f1f1f; box-shadow: var(--raise), inset 0 0 0 1px rgba(255,255,255,.4); }
+  .go.again { background: linear-gradient(135deg, #ffffff, #cfcfcf); }
+  .row { display: flex; gap: 10px; margin-top: 12px; }
+  .soft { flex: 1; font: inherit; font-size: 14px; color: var(--ink); border: 0; border-radius: 16px; padding: 12px 8px; cursor: pointer;
+          background: rgba(255,255,255,.05); box-shadow: var(--raise); }
+  .soft:active { box-shadow: var(--press); }
+  #status { margin: 14px 4px 0; min-height: 40px; font-size: 14px; color: var(--muted); white-space: pre-line; }
+  #status.ok { color: var(--ok); } #status.bad { color: var(--bad); }
+  footer { text-align: center; font-size: 12px; color: var(--muted); padding: 2px 8px; }
+  footer b { color: var(--ok); font-weight: 600; }
+
+  /* full-screen light for Screen mode: black with one small square */
+  #flash { position: fixed; inset: 0; background: #000; z-index: 20; display: none; }
+  #flash.on { display: block; }
+  #dot { position: absolute; left: 50%; top: 50%; width: var(--dot, 90px); height: var(--dot, 90px);
+         margin: calc(var(--dot, 90px) / -2); background: #000; }
+  #flash small { position: absolute; bottom: 22px; left: 0; right: 0; text-align: center; color: #333; font-size: 13px; }
 </style>
 </head>
 <body>
 <main>
-  <h2>Light Link transmitter</h2>
-  <label>Message (max 32 bytes)</label>
-  <input id="msg" value="HI" maxlength="32">
-  <label>Bit rate (bit/s, must match the receiver)</label>
-  <select id="rate"></select>
-  <label>Gap between frames (ms)</label>
-  <input id="gap" type="number" value="1000" min="0" max="60000">
-  <label>Light</label>
-  <select id="mode">
-    <option value="screen">Screen flash (works everywhere)</option>
-    <option value="torch">Flashlight (Android Chrome, needs https)</option>
-  </select>
-  <button id="go">Start sending</button>
-  <button id="cal">Calibration: steady 1 Hz blink</button>
-  <button id="stop">Stop</button>
-  <div id="status">idle</div>
-  <p class="warn">This page makes no network requests (blocked by its Content-Security-Policy). The light is the only output.</p>
-  <p class="warn">Screen mode: tap the screen to stop. Put the phone 1-3 m from the laptop camera,
-  screen brightness at maximum. Do not use the flashlight at someone's face.</p>
+  <header>
+    <h1>Light Link</h1>
+    <p>Send a message as blinking light.</p>
+  </header>
+
+  <section class="glass">
+    <label for="msg">Message <span class="count" id="count">2 / 32</span></label>
+    <input id="msg" type="text" value="HI" maxlength="32" autocomplete="off" autocapitalize="off" spellcheck="false">
+
+    <div class="lab">Bit rate &middot; must match the laptop</div>
+    <div class="chips" id="rates"></div>
+    <p class="hint" id="rateNote"></p>
+
+    <div class="lab">Light</div>
+    <div class="seg" id="modeSeg">
+      <button type="button" data-v="screen" class="on">Screen square</button>
+      <button type="button" data-v="torch">Flashlight</button>
+    </div>
+    <div id="sizeWrap">
+      <div class="lab">Square size</div>
+      <div class="seg" id="sizeSeg">
+        <button type="button" data-v="50">Small</button>
+        <button type="button" data-v="90" class="on">Medium</button>
+        <button type="button" data-v="160">Large</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="glass stage">
+    <div class="ring">
+      <svg viewBox="0 0 120 120">
+        <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#8a8a8a"/></linearGradient></defs>
+        <circle class="track" cx="60" cy="60" r="54"/><circle class="bar" id="bar" cx="60" cy="60" r="54"/>
+      </svg>
+      <div class="mid"><div class="big" id="big">Ready</div><div class="sm" id="sm">sends once</div></div>
+    </div>
+    <button class="go" id="go" type="button">Send message</button>
+    <div class="row">
+      <button class="soft" id="cal" type="button">Steady blink</button>
+      <button class="soft" id="test" type="button" hidden>Test flashlight</button>
+    </div>
+    <div id="status">Start the receiver on the laptop, then tap Send. The light blinks for a few seconds first so the laptop can lock on.</div>
+  </section>
+
+  <footer><b>No network requests</b> &middot; this page cannot send or receive data; the light is its only output.</footer>
 </main>
-<div id="flash"><div id="dot"></div></div>
+<div id="flash"><div id="dot"></div><small>tap anywhere to stop</small></div>
+
 <script>
 // Same frame format as protocol/FRAME_SPEC.md (keep in sync with lightlink/protocol.py).
 const SYNC = 0x2DD4;
@@ -63,56 +161,164 @@ if (typeof module !== "undefined") module.exports = { crc8, buildFrame, manchest
 
 if (typeof document !== "undefined") (function () {
   const $ = id => document.getElementById(id);
-  for (let r = 2; r <= 15; r++) $("rate").add(new Option(r + " bit/s", r, false, r === 4));
-  let running = false, track = null, wake = null;
+  const LEAD_IN_MS = 4000;       // blink before the frame so the receiver can find and track the light
+  const START_DELAY_MS = 500;    // time to put the phone down after tapping
+  const RATES = [2, 3, 4, 5, 6, 8, 10, 12, 15];
+  let rate = 4, mode = "screen", running = false, sent = false, kind = "";
+  let stream = null, track = null, wake = null;
+  let want = 0, have = 0, inflight = false, lat = [];
 
-  async function setupTorch() {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-    track = stream.getVideoTracks()[0];
-    if (!(track.getCapabilities && track.getCapabilities().torch)) throw new Error("this browser/phone exposes no torch control");
+  // ---- small UI helpers ----------------------------------------------------------------
+  function say(text, cls) { const s = $("status"); s.textContent = text; s.className = cls || ""; }
+  function pick(container, btn) { [...container.children].forEach(c => c.classList.toggle("on", c === btn)); }
+  function bytes() { return Array.from(new TextEncoder().encode($("msg").value)); }
+  function frameSeconds() { const n = bytes().length; return (8 + 16 + 8 + 8 * n + 8) / rate + LEAD_IN_MS / 1000; }
+
+  RATES.forEach(r => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip" + (r === rate ? " on" : ""); b.textContent = r;
+    b.onclick = () => { if (running) return; rate = r; pick($("rates"), b); note(); };
+    $("rates").appendChild(b);
+  });
+  function note() {
+    const n = $("rateNote");
+    const need = rate * 6;
+    n.textContent = `${bytes().length} byte${bytes().length === 1 ? "" : "s"} takes about ${frameSeconds().toFixed(0)} s. ` +
+      (rate > 5 ? `Needs a camera running about ${need}+ fps; most webcams give 30, so 4 or 5 is safest.` : "Good for a 30 fps webcam.");
+    n.className = "hint" + (rate > 5 ? " warn" : "");
   }
-  let last = -1;
+  $("msg").addEventListener("input", () => { $("count").textContent = bytes().length + " / 32"; note(); resetDone(); });
+  document.querySelectorAll("#modeSeg button").forEach(b => b.onclick = () => {
+    if (running) return;
+    mode = b.dataset.v; pick($("modeSeg"), b);
+    $("sizeWrap").hidden = mode !== "screen"; $("test").hidden = mode !== "torch";
+    if (mode !== "torch") releaseTorch();
+    resetDone();
+  });
+  document.querySelectorAll("#sizeSeg button").forEach(b => b.onclick = () => {
+    pick($("sizeSeg"), b); document.documentElement.style.setProperty("--dot", b.dataset.v + "px");
+  });
+
+  // ---- the light ------------------------------------------------------------------------
+  async function ensureTorch() {
+    if (track) return;
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    track = stream.getVideoTracks()[0];
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (!caps.torch) { releaseTorch(); throw new Error("this phone/browser has no torch control (use Screen square)"); }
+  }
+  function releaseTorch() {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = track = null; have = want = 0; inflight = false;
+  }
+  // Torch commands are asynchronous and the phone drops or merges them if we queue faster than it
+  // can switch. So we keep exactly one in flight, always aiming at the latest wanted level, and
+  // measure how long each switch really takes.
+  async function pump() {
+    if (inflight || want === have || !track) return;
+    inflight = true; const target = want, t = performance.now();
+    try { await track.applyConstraints({ advanced: [{ torch: !!target }] }); } catch (e) { /* keep going */ }
+    have = target; lat.push(performance.now() - t); inflight = false;
+    if (want !== have) pump();
+  }
   function setLight(on) {
-    if (on === last) return;
-    last = on;
-    if ($("mode").value === "torch") track.applyConstraints({ advanced: [{ torch: !!on }] }).catch(() => {});
+    if (mode === "torch") { want = on ? 1 : 0; pump(); }
     else $("dot").style.background = on ? "#fff" : "#000";
   }
-  async function start(calibrate) {
-    if (running) stop();
-    const msg = Array.from(new TextEncoder().encode($("msg").value));
-    if (msg.length > 32) { $("status").textContent = "message longer than 32 bytes"; return; }
-    const rate = +$("rate").value, Ts = 1000 / (2 * rate);
-    const syms = manchester(buildFrame(msg));
-    const total = syms.length + Math.round(+$("gap").value / Ts);
+
+  // ---- progress ring ---------------------------------------------------------------------
+  function ring(frac, big, sm) {
+    $("bar").style.strokeDashoffset = String(339.3 * (1 - Math.max(0, Math.min(1, frac))));
+    $("big").textContent = big; $("sm").textContent = sm;
+  }
+  function resetDone() {
+    if (running || !sent) return;
+    sent = false; $("go").textContent = "Send message"; $("go").className = "go"; ring(0, "Ready", "sends once");
+  }
+  function ui(isRunning) {
+    document.querySelectorAll(".chip, #modeSeg button, #sizeSeg button, #msg").forEach(e => e.disabled = isRunning);
+    $("go").textContent = isRunning ? "Stop" : sent ? "Play again" : "Send message";
+    $("go").className = "go" + (isRunning ? " stop" : sent ? " again" : "");
+    $("cal").textContent = isRunning && kind === "cal" ? "Stop blink" : "Steady blink";
+  }
+
+  // ---- running a plan ---------------------------------------------------------------------
+  async function start(k) {
+    if (running) return;
+    const msg = bytes();
+    if (k === "send" && (msg.length < 1 || msg.length > 32)) { say("Type a message of 1 to 32 bytes.", "bad"); return; }
     try {
-      if ($("mode").value === "torch") await setupTorch(); else $("flash").style.display = "block";
+      if (mode === "torch") await ensureTorch();
       if (navigator.wakeLock) wake = await navigator.wakeLock.request("screen").catch(() => null);
-    } catch (e) { $("status").textContent = "cannot start: " + e.message; $("flash").style.display = "none"; return; }
-    running = true; last = -1;
-    const t0 = performance.now() + 500;     // absolute schedule: errors never accumulate
-    $("status").textContent = calibrate ? "calibration: 1 Hz blink" :
-      `sending "${$("msg").value}" at ${rate} bit/s, frame ${(syms.length * Ts / 1000).toFixed(1)} s`;
+    } catch (e) { say("Cannot start: " + e.message, "bad"); return; }
+
+    const Ts = 1000 / (2 * rate);
+    let syms = [], leadSyms = 0;
+    if (k === "send") {
+      const leadBits = Math.max(8, Math.round(LEAD_IN_MS / (2 * Ts)));
+      for (let i = 0; i < leadBits; i++) syms.push(1, 0);        // same square wave as the preamble
+      leadSyms = syms.length;
+      syms = syms.concat(manchester(buildFrame(msg)));
+    } else if (k === "test") {
+      for (let i = 0; i < 20; i++) syms.push(1, 0);
+    }
+    const total = syms.length * Ts;
+    running = true; kind = k; sent = false; lat = [];
+    say(k === "cal" ? "Steady 1 Hz blink. Check the laptop boxes the light, then tap Stop." :
+        k === "test" ? "Switching the flashlight at the chosen bit rate..." :
+        "Put the phone down facing the laptop camera. Starting in a moment...");
+    ui(true);
+    if (mode === "screen" && k !== "test") $("flash").classList.add("on");
+    const t0 = performance.now() + START_DELAY_MS;
+
     (function loop() {
       if (!running) return;
       const dt = performance.now() - t0;
-      const on = dt < 0 ? 0 : calibrate ? (Math.floor(dt / 500) % 2 === 0 ? 1 : 0)
-                                        : (Math.floor(dt / Ts) % total < syms.length ? syms[Math.floor(dt / Ts) % total] : 0);
+      let on = 0;
+      if (k === "cal") on = dt < 0 ? 0 : (Math.floor(dt / 500) % 2 === 0 ? 1 : 0);
+      else {
+        if (dt >= total) return finish(k, msg);
+        on = dt < 0 ? 0 : syms[Math.floor(dt / Ts)];
+      }
       setLight(on);
+      if (k === "cal") ring(((dt < 0 ? 0 : dt / 500) % 1), "1 Hz", "steady blink");
+      else if (dt < 0) ring(0, "Get ready", "");
+      else if (Math.floor(dt / Ts) < leadSyms) ring(dt / total, "Lead-in", "laptop is locking on");
+      else ring(dt / total, Math.max(0, Math.ceil((total - dt) / 1000)) + " s", "sending");
       setTimeout(loop, 4);
     })();
   }
-  function stop() {
-    running = false; setLight(0);
-    $("flash").style.display = "none";
-    if (track) { track.stop(); track = null; }
+  function end() {
+    running = false; setLight(0); $("flash").classList.remove("on");
     if (wake) { wake.release(); wake = null; }
-    $("status").textContent = "idle";
   }
-  $("go").onclick = () => start(false);
-  $("cal").onclick = () => start(true);
-  $("stop").onclick = stop;
+  function finish(k, msg) {
+    end();
+    const avg = lat.length ? lat.reduce((a, b) => a + b, 0) / lat.length : 0, mx = lat.length ? Math.max(...lat) : 0;
+    const half = 1000 / (2 * rate);
+    if (k === "test") {
+      ring(1, "Done", "flashlight test");
+      const slow = avg > half * 0.5;
+      say(`Flashlight took ${avg.toFixed(0)} ms on average to switch (slowest ${mx.toFixed(0)} ms). One light symbol lasts ${half.toFixed(0)} ms.\n` +
+          (slow ? "Too slow for this bit rate: pick a lower rate or use the Screen square." : "Fast enough for this bit rate."), slow ? "bad" : "ok");
+      ui(false); return;
+    }
+    sent = true; ring(1, "Sent", "tap Play again to resend"); ui(false);
+    let txt = `Sent "${new TextDecoder().decode(new Uint8Array(msg))}" once at ${rate} bit/s. The laptop should show it as VALID.`;
+    if (mode === "torch" && lat.length) {
+      txt += `\nFlashlight switched in ${avg.toFixed(0)} ms on average (slowest ${mx.toFixed(0)} ms)` +
+             (avg > half * 0.5 ? ", which is too slow for this rate; the light may not match the message." : ".");
+    }
+    say(txt, "ok");
+  }
+  function stop() { if (!running) return; end(); say("Stopped.", ""); ring(0, "Ready", "sends once"); ui(false); }
+
+  $("go").onclick = () => running ? stop() : start("send");
+  $("cal").onclick = () => running ? (kind === "cal" ? stop() : 0) : start("cal");
+  $("test").onclick = () => start("test");
   $("flash").onclick = stop;
+  document.addEventListener("visibilitychange", () => { if (document.hidden) { if (running) stop(); releaseTorch(); } });
+  note();
 })();
 </script>
 </body>

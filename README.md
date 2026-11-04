@@ -33,7 +33,7 @@ python scripts/run_replay.py --simulate --no-window
 1. Phone: open <https://ai-dude.github.io/lightlink/>, set bit rate **4**, tap **Calibration**.
 2. Laptop: `python scripts/run_live.py --bit-rate 4`
 3. Hold the phone 1-2 m from the laptop, light facing the camera. A box should appear around it.
-4. Phone: tap **Start sending**. After a few seconds the message appears in the dashboard.
+4. Phone: tap **Send message**. It blinks a lead-in for 4 s so the laptop can lock on, sends the message once, then offers **Play again**. The message appears in the dashboard when it finishes.
 
 Dashboard keys: `l` log to CSV, `v` record raw camera video, `f` fullscreen, `q` quit. The window can be resized or maximised and the layout adapts. Output goes to `logs/`.
 
