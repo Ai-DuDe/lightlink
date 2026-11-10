@@ -69,4 +69,15 @@ def test_dashboard_renders_headless():
         out = render(f.image, u, ds, 8.0, True, True, size=(w, h))
         assert out.shape == (h, w, 3) and out.std() > 5, (w, h)
     out = render(f.image, u, ds, 8.0, False, False, size=(1280, 720))
-    assert set(ds.buttons) == {'rate_down', 'rate_up'}      # clickable rate buttons are laid out
+    assert set(ds.buttons) == {'rate_down', 'rate_up', 'dark'}   # clickable buttons are laid out
+
+
+def test_dark_view_blacks_out_background_but_keeps_the_light():
+    import numpy as np
+    from lightlink.dashboard import _dark_view
+    frame = np.full((360, 640, 3), 110, np.uint8)          # a bright, washed-out room
+    frame[170:176, 300:306] = 250                           # the blinking light
+    out = _dark_view(frame)
+    assert out[50, 50].max() < 15                           # background pushed to black
+    assert out[172, 302].min() > 200                        # light still bright
+    assert (frame[50, 50] == 110).all()                     # the original frame is untouched

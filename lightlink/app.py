@@ -64,7 +64,13 @@ def run_dashboard(cfg, source, realtime=False, headless_frames=None):
             if key in (ord("q"), 27):
                 break
             while clicks:
-                step_rate(1 if clicks.pop(0) == "rate_up" else -1)
+                name = clicks.pop(0)
+                if name == "dark":
+                    ds.dark = not ds.dark
+                else:
+                    step_rate(1 if name == "rate_up" else -1)
+            if key == ord("d"):
+                ds.dark = not ds.dark
             if key in (ord("="), ord("+"), ord("]")):
                 step_rate(1)
             if key in (ord("-"), ord("_"), ord("[")):

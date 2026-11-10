@@ -32,6 +32,7 @@ class DashboardState:
         self.log = deque(maxlen=60)    # (time, ok, text); render shows as many as fit
         self.counts = {"valid": 0, "failed": 0}
         self.buttons = {}              # name -> (x0, y0, x1, y1) of clickable areas, set by render()
+        self.dark = cfg.get("dark_view", True)   # display-only: darken the background so the light stands out
 
     def add(self, u):
         if u.brightness is not None:
@@ -100,12 +101,23 @@ def _letterbox(frame, w, h):
 
 
 # --- panels --------------------------------------------------------------------------------------
-def _draw_video(canvas, frame, u, rect, s, recording):
+def _dark_view(frame):
+    """Display-only filter: push the background to black so a blinking light stands out.
+    The receiver always decodes the untouched frame; this only changes what you see."""
+    gray = frame if frame.ndim == 2 else cv2.cvtColor(frame[::8, ::8], cv2.COLOR_BGR2GRAY)
+    base = float(np.percentile(gray, 80)) + 12      # just above the typical background level
+    gain = 255.0 / max(255.0 - base, 40.0)
+    # a lookup table clips below-background pixels to true black (convertScaleAbs would mirror them)
+    lut = np.clip((np.arange(256) - base) * gain, 0, 255).astype(np.uint8)
+    return cv2.LUT(frame, lut)
+
+
+def _draw_video(canvas, frame, u, rect, s, recording, ds):
     x0, y0, x1, y1 = rect
     w, h = x1 - x0, y1 - y0
     m = int(10 * s)
     aw, ah = max(1, w - 2 * m), max(1, h - 2 * m)
-    img, k, ox, oy = _letterbox(frame, aw, ah)
+    img, k, ox, oy = _letterbox(_dark_view(frame) if ds.dark else frame, aw, ah)
     px, py = x0 + m + ox, y0 + m + oy
     canvas[py:py + img.shape[0], px:px + img.shape[1]] = img
     col = STATE_COLOR[u.state]
@@ -120,6 +132,14 @@ def _draw_video(canvas, frame, u, rect, s, recording):
         rx = px + img.shape[1] - int(14 * s)
         cv2.circle(canvas, (rx - int(46 * s), py + int(18 * s)), int(6 * s) + 1, BAD, -1, cv2.LINE_AA)
         _put(canvas, "REC", rx, py + int(24 * s), 0.55 * s, TEXT, 1, right=True)
+    # clickable chip: dark view on/off (key D)
+    label = "Dark view ON (D)" if ds.dark else "Dark view OFF (D)"
+    tw = _text_w(label, 0.5 * s)
+    bx0, by0 = px + int(10 * s), py + int(10 * s)
+    bx1, by1 = bx0 + tw + int(20 * s), by0 + int(28 * s)
+    _rrect(canvas, bx0, by0, bx1, by1, 8 * s, (20, 18, 16))
+    _put(canvas, label, bx0 + int(10 * s), by0 + int(19 * s), 0.5 * s, TEXT if ds.dark else MUTED)
+    ds.buttons["dark"] = (bx0, by0, bx1, by1)
 
 
 def _draw_panel(canvas, u, ds, bit_rate, rect, s, logging_on, recording):
@@ -150,7 +170,6 @@ def _draw_panel(canvas, u, ds, bit_rate, rect, s, logging_on, recording):
             y += int(10 * s) + gap
 
     # 1b. bit rate control (must equal the transmitter's) -------------------------------------
-    ds.buttons = {}
     rh = int(46 * s)
     if bottom - y >= rh + 70 * s:
         _card(canvas, ix0, y, ix1, y + rh, s)
@@ -251,7 +270,7 @@ def _draw_panel(canvas, u, ds, bit_rate, rect, s, logging_on, recording):
 
     # footer ------------------------------------------------------------------------------------
     fy = y1 - pad + int(2 * s)
-    hint = "+/- rate   L log   V video   F full   Q quit"
+    hint = "+/- rate   D dark   L log   V video   F full   Q quit"
     _put(canvas, hint, ix0, fy, 0.36 * s, MUTED, 1, max_w=iw - 60 * s)
     flags = [("LOG", logging_on), ("REC", recording)]
     fx = ix1
@@ -275,7 +294,8 @@ def render(frame, u, ds, bit_rate, logging_on=False, recording=False, size=None)
         fh, fw = frame.shape[:2]
         vh = int(min(W * fh / fw + 20 * s, H * 0.5))
         video, panel = (0, 0, W, vh), (0, vh, W, H)
-    _draw_video(canvas, frame, u, video, s, recording)
+    ds.buttons = {}
+    _draw_video(canvas, frame, u, video, s, recording, ds)
     _draw_panel(canvas, u, ds, bit_rate, panel, s, logging_on, recording)
     return canvas
 

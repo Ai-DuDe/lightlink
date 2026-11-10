@@ -83,6 +83,7 @@ dashboard:
   log_lines: 8
   log_dir: logs
   video_fourcc: MJPG
+  dark_view: true         # display-only filter that blacks out the background so the light stands out (key D)
   rates: [2, 3, 4, 5, 6, 8, 10, 12, 15]   # steps for the + / - bit-rate buttons
 
 sim:
