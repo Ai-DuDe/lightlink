@@ -78,6 +78,6 @@ def test_dark_view_blacks_out_background_but_keeps_the_light():
     frame = np.full((360, 640, 3), 110, np.uint8)          # a bright, washed-out room
     frame[170:176, 300:306] = 250                           # the blinking light
     out = _dark_view(frame)
-    assert out[50, 50].max() < 15                           # background pushed to black
+    assert 5 < out[50, 50].max() < 35                       # room dimmed but still visible, not pitch black
     assert out[172, 302].min() > 200                        # light still bright
     assert (frame[50, 50] == 110).all()                     # the original frame is untouched

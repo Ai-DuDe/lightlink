@@ -20,6 +20,7 @@ STATE_COLOR = {"LOCKED": (110, 205, 90), "DEGRADED": (0, 178, 255), "LOST": (80,
 OK, BAD, TRACE = (110, 205, 90), (80, 80, 240), (255, 200, 90)
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 DESIGN_W, DESIGN_H = 1280, 720           # size at which scale == 1
+DARK_DIM = 0.30                          # dark view: the ordinary scene is shown at this brightness
 DEFAULT_SIZE = (DESIGN_W, DESIGN_H)
 
 
@@ -105,11 +106,13 @@ def _dark_view(frame):
     """Display-only filter: push the background to black so a blinking light stands out.
     The receiver always decodes the untouched frame; this only changes what you see."""
     gray = frame if frame.ndim == 2 else cv2.cvtColor(frame[::8, ::8], cv2.COLOR_BGR2GRAY)
-    base = float(np.percentile(gray, 80)) + 12      # just above the typical background level
-    gain = 255.0 / max(255.0 - base, 40.0)
-    # a lookup table clips below-background pixels to true black (convertScaleAbs would mirror them)
-    lut = np.clip((np.arange(256) - base) * gain, 0, 255).astype(np.uint8)
-    return cv2.LUT(frame, lut)
+    # Everything up to "bright for this scene" is dimmed to a faint silhouette, so you still see
+    # the room and can aim; anything brighter than that (the light) is stretched up to full white.
+    base = min(float(np.percentile(gray, 90)) + 12, 235.0)
+    i = np.arange(256, dtype=np.float32)
+    floor = base * DARK_DIM
+    lut = np.where(i < base, i * DARK_DIM, floor + (i - base) * (255.0 - floor) / (255.0 - base))
+    return cv2.LUT(frame, np.clip(lut, 0, 255).astype(np.uint8))
 
 
 def _draw_video(canvas, frame, u, rect, s, recording, ds):
