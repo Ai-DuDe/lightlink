@@ -8,11 +8,11 @@ protocol:
 
 camera:
   index: 0
-  backends: [msmf, dshow, any]   # MSMF gave 27 fps vs 5 fps on DirectShow on the dev laptop webcam
+  backends: [dshow, msmf, any]   # DirectShow honours the exposure lock: the dark picture where the light stands out
   width: 1280
   height: 720
   fps: 30
-  lock_exposure: false   # MSMF repeated frames when locked on the dev webcam; re-test with camera_check.py
+  lock_exposure: true    # short fixed exposure (see 'exposure'): dark room, bright light, steady frame rate
   exposure: -6            # driver specific; DirectShow uses log2 seconds (-6 = 1/64 s)
   gain: 0
   readback_tol: 0.6       # a property "obeyed" if the read-back is within this of the request
@@ -83,7 +83,7 @@ dashboard:
   log_lines: 8
   log_dir: logs
   video_fourcc: MJPG
-  dark_view: true         # display-only filter that blacks out the background so the light stands out (key D)
+  dark_view: false        # extra display-only darkening (key D); off because the locked camera is already dark
   rates: [2, 3, 4, 5, 6, 8, 10, 12, 15]   # steps for the + / - bit-rate buttons
 
 sim:

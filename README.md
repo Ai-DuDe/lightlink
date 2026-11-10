@@ -48,7 +48,7 @@ python scripts/run_replay.py --simulate --no-window
 3. Hold the phone 1-2 m from the laptop, light facing the camera. A box should appear around it.
 4. Phone: tap **Send message**. It blinks a lead-in for 4 s so the laptop can lock on, sends the message once, then offers **Play again**. The message appears in the dashboard when it finishes.
 
-Dashboard: click the `-` / `+` buttons (or press `-` / `+`) to change the bit rate to match the sender. Keys: `d` dark view (darkens the picture so the light stands out; display only), `l` log to CSV, `v` record raw camera video, `f` fullscreen, `q` quit. The window can be resized or maximised and the layout adapts. Output goes to `logs/`.
+Dashboard: click the `-` / `+` buttons (or press `-` / `+`) to change the bit rate to match the sender. Keys: `d` extra dark view (display only, off by default), `l` log to CSV, `v` record raw camera video, `f` fullscreen, `q` quit. The window can be resized or maximised and the layout adapts. Output goes to `logs/`.
 
 The phone page makes no network requests at all (its Content-Security-Policy forbids them), so what the laptop
 receives has travelled only as light. The page is `docs/index.html`.
@@ -84,7 +84,9 @@ Reports the real frame rate, whether exposure stays fixed, and whether the camer
 ## Troubleshooting
 
 - **Very low FPS (around 5):** the room is too dark, so the webcam uses long exposures. Turn on a dim lamp.
-  On Windows, `camera.backends` in `config.yaml` tries Media Foundation first (5x faster than DirectShow on the dev laptop).
+  The camera opens with DirectShow and a locked short exposure (`camera.backends`, `camera.lock_exposure` in
+  `config.yaml`), which gives a dark picture where the light stands out. If your webcam ignores the lock and stays slow,
+  put `msmf` first in `camera.backends` and set `lock_exposure: false`.
 - **No box around the light:** a full-screen flash is rejected as a scene change. Use the small square (default) or the flashlight.
 - **State stays DEGRADED:** no valid frame yet. Check both bit rates match and the light is not blown out in the picture.
 
