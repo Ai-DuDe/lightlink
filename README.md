@@ -6,6 +6,19 @@ No Wi-Fi or Bluetooth between the two devices: the only connection is light.
 
 A message is shown as **VALID** only if its CRC checksum passes. Anything else is logged as failed and never displayed.
 
+## Which file do I run?
+
+| I want to... | Run |
+|---|---|
+| **Receive messages with my webcam** (the main thing) | `python run.py` |
+| Try it with no hardware (simulated camera and light) | `python scripts/run_replay.py --simulate` |
+| Check my webcam is good enough | `python scripts/camera_check.py` |
+| Send from a phone | open <https://ai-dude.github.io/lightlink/> |
+| Send from an ESP32 | upload `firmware/lightlink_tx/lightlink_tx.ino` |
+| Run the tests | `python -m pytest -q` |
+
+The sender and receiver must use the same bit rate (default 4). Everything else is configuration in `config.yaml`.
+
 ## What you need
 
 - Python 3.11+ and a webcam (a 720p laptop camera is fine)
@@ -31,7 +44,7 @@ python scripts/run_replay.py --simulate --no-window
 **Live, with a phone as the transmitter:**
 
 1. Phone: open <https://ai-dude.github.io/lightlink/>, set bit rate **4**, tap **Calibration**.
-2. Laptop: `python scripts/run_live.py --bit-rate 4`
+2. Laptop: `python run.py --bit-rate 4`
 3. Hold the phone 1-2 m from the laptop, light facing the camera. A box should appear around it.
 4. Phone: tap **Send message**. It blinks a lead-in for 4 s so the laptop can lock on, sends the message once, then offers **Play again**. The message appears in the dashboard when it finishes.
 

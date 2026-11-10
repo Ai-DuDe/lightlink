@@ -99,7 +99,7 @@ def main():
     if not problems:
         print(f"Recommended bit rate: {max(2, int(bmax))} bit/s or lower (hard ceiling ~{bmax:.1f}). "
               f"At {fps:.0f} fps each half-bit gets about {fps / (2 * max(2, int(bmax))):.1f} camera samples.")
-        print(f"Run the receiver with:  python scripts/run_live.py --bit-rate {max(2, int(bmax))}")
+        print(f"Run the receiver with:  python run.py --bit-rate {max(2, int(bmax))}")
 
 
 if __name__ == "__main__":

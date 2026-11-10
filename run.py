@@ -1,9 +1,11 @@
-"""Live receiver: webcam -> dashboard.   python scripts/run_live.py [--camera 0] [--bit-rate 4]"""
+"""RUN THIS. Live receiver: webcam -> dashboard.   python run.py [--bit-rate 4] [--camera 0]
+
+The bit rate must match the sender (default: protocol.bit_rate_bps in config.yaml)."""
 import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lightlink.app import run_dashboard  # noqa: E402
 from lightlink.camera import Camera  # noqa: E402
 from lightlink.config import load_config  # noqa: E402
